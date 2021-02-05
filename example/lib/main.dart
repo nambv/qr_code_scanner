@@ -135,6 +135,7 @@ class _QRViewExampleState extends State<QRViewExample> {
       cameraFacing: CameraFacing.front,
       onQRViewCreated: _onQRViewCreated,
       formatsAllowed: [BarcodeFormat.qrcode],
+      openPaused: false,
       overlay: QrScannerOverlayShape(
         borderColor: Colors.red,
         borderRadius: 10,

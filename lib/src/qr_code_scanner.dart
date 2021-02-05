@@ -25,6 +25,7 @@ class QRView extends StatefulWidget {
     this.cameraFacing = CameraFacing.back,
     this.onPermissionSet,
     this.formatsAllowed,
+    this.openPaused = false,
   })  : assert(key != null),
         assert(onQRViewCreated != null),
         super(key: key);
@@ -50,6 +51,11 @@ class QRView extends StatefulWidget {
 
   /// Use [formatsAllowed] to specify which formats needs to be scanned.
   final List<BarcodeFormat> formatsAllowed;
+
+  /// Pause camera when opened in order to improve performance.
+  ///
+  /// Default: false
+  final bool openPaused;
 
   @override
   State<StatefulWidget> createState() => _QRViewState();
@@ -124,9 +130,14 @@ class _QRViewState extends State<QRView> {
     _channel = MethodChannel('net.touchcapture.qr.flutterqr/qrview_$id');
 
     // Start scan after creation of the view
-    final controller =
-        QRViewController._(_channel, widget.key, widget.onPermissionSet)
-          .._startScan(widget.key, widget.overlay, widget.formatsAllowed);
+    final controller = QRViewController._(_channel, widget.onPermissionSet)
+      .._formatsAllowed = widget.formatsAllowed
+      .._overlay = widget.overlay
+      .._key = widget.key;
+
+    if (!widget.openPaused) {
+      controller.startScan();
+    }
 
     // Initialize the controller for controlling the QRView
     if (widget.onQRViewCreated != null) {
@@ -137,20 +148,21 @@ class _QRViewState extends State<QRView> {
 
 class _QrCameraSettings {
   _QrCameraSettings({
-    this.cameraFacing,
+    this.cameraFacing
   });
 
   final CameraFacing cameraFacing;
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
-      'cameraFacing': cameraFacing.index,
+      'cameraFacing': cameraFacing.index
     };
   }
 }
 
 class QRViewController {
-  QRViewController._(MethodChannel channel, GlobalKey qrKey,
+
+  QRViewController._(MethodChannel channel,
       PermissionSetCallback onPermissionSet)
       : _channel = channel {
     _channel.setMethodCallHandler((call) async {
@@ -200,14 +212,17 @@ class QRViewController {
   SystemFeatures get systemFeatures => _features;
   bool get hasPermissions => _hasPermissions;
 
-  /// Starts the barcode scanner
-  Future<void> _startScan(GlobalKey key, QrScannerOverlayShape overlay,
-      List<BarcodeFormat> barcodeFormats) async {
-    // We need to update the dimension before the scan is started.
+   List<BarcodeFormat> _formatsAllowed;
+   QrScannerOverlayShape _overlay;
+   GlobalKey _key;
+
+  /// Starts the barcode scanner based on values provided by QRView.
+  Future<void> startScan() async {
     try {
-      await QRViewController.updateDimensions(key, _channel, overlay: overlay);
+      // We need to update the dimension for iOS before the scan is started.
+      await QRViewController.updateDimensions(_key, _channel, overlay: _overlay);
       return await _channel.invokeMethod(
-          'startScan', barcodeFormats?.map((e) => e.asInt())?.toList() ?? []);
+          'startScan', _formatsAllowed?.map((e) => e.asInt())?.toList() ?? []);
     } on PlatformException catch (e) {
       throw CameraException(e.code, e.message);
     }
